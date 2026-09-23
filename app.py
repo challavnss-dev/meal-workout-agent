@@ -148,35 +148,27 @@ class NourishSyncAgents:
         return ""
 
     # --------------------------------------------------------
-    # JSON EXTRACTION
+    # JSON EXTRACTION (ROBUST)
     # --------------------------------------------------------
     def parse_json(self, text: str) -> Dict[str, Any]:
         if not text:
             return {}
 
-        text = text.strip()
-
-        if text.startswith("```"):
-            lines = text.splitlines()
-            if lines:
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
+        # Remove markdown fences
+        cleaned = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
 
         try:
-            result = json.loads(text)
+            result = json.loads(cleaned)
             if isinstance(result, dict):
                 return result
         except Exception:
             pass
 
-        start = text.find("{")
-        end = text.rfind("}")
-
-        if start >= 0 and end > start:
+        # Regex fallback to extract outer brackets
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
             try:
-                result = json.loads(text[start:end + 1])
+                result = json.loads(match.group(0))
                 if isinstance(result, dict):
                     return result
             except Exception:
@@ -235,19 +227,13 @@ USER CONTEXT:
 Create a practical weekly workout schedule.
 Respect the user's selected workout type for each day.
 For every day (Monday to Sunday) return:
-workout
-duration_minutes
-intensity
-preferred_time
-notes
+workout, duration_minutes, intensity, preferred_time, notes.
 
-Return JSON only with keys corresponding to days of the week.
+Return JSON only.
 """
         system = """
-You are the Workout Agent.
-Your role is to coordinate exercise scheduling with the user's weekly constraints.
-Do not diagnose medical conditions.
-Do not provide medical treatment.
+You are the Workout Agent. Coordinate exercise scheduling with weekly constraints.
+Do not diagnose medical conditions. Output valid JSON only.
 """
         try:
             return self.parse_json(self.ask(system, prompt, temperature=0.2, max_tokens=3000))
@@ -266,23 +252,16 @@ WORKOUT PLAN:
 
 Create a seven-day meal plan.
 Prioritize ingredients already in the pantry.
-Respect:
-- food preference
-- foods to avoid
-- weekly budget
-- cooking time
-- workout schedule
+Respect: food preference, foods to avoid, weekly budget, cooking time, and workout schedule.
 
-For each day provide:
-breakfast, lunch, snack, dinner, estimated_cost, reason.
+For each day provide: breakfast, lunch, snack, dinner, estimated_cost, reason.
 Also provide: grocery_list (array of strings).
 Return JSON only.
 """
         system = """
 You are the Meal Planning Agent.
-You coordinate food with workout timing, inventory, budget and cooking constraints.
-Keep meals practical and affordable.
-Do not make medical claims.
+Coordinate food with workout timing, inventory, budget and cooking constraints.
+Output valid JSON only.
 """
         try:
             return self.parse_json(self.ask(system, prompt, temperature=0.3, max_tokens=4000))
@@ -317,17 +296,14 @@ Return JSON only:
   "suggestions": []
 }}
 """
-        system = """
-You are the Constraint and Validation Agent.
-Your job is to challenge the proposed plan, not blindly accept it.
-"""
+        system = "You are the Constraint and Validation Agent. Challenge the proposed plan."
         try:
             return self.parse_json(self.ask(system, prompt, temperature=0.1, max_tokens=2000))
         except Exception as e:
             return {"status": "ERROR", "violations": [str(e)]}
 
     # --------------------------------------------------------
-    # COORDINATOR AGENT
+    # COORDINATOR AGENT (FIXED SCHEMA)
     # --------------------------------------------------------
     def coordinator_agent(
         self,
@@ -347,35 +323,47 @@ CONSTRAINT AGENT:
 {safe_json(constraints)}
 
 You are the Supervisor Coordinator.
-Combine all agent outputs.
-If constraints identify problems, fix them.
-Create one final coordinated seven-day plan.
+Combine all agent outputs into one final plan.
 
-Return JSON matching this format EXACTLY:
+YOU MUST RETURN JSON MATCHING THIS EXACT KEY STRUCTURE FOR THE UI TO RENDER:
 {{
-  "summary": "High level overview",
-  "estimated_weekly_budget": 200,
+  "summary": "High level summary of the plan",
+  "estimated_weekly_budget": 2500,
   "plan_score": 95,
-  "coordination_logic": "Why this plan is unified",
-  "grocery_list": ["item1", "item2"],
+  "coordination_logic": "Detailed explanation of why this plan fits the user...",
+  "grocery_list": ["Item 1", "Item 2"],
   "weekly_plan": {{
      "Monday": {{
         "workout": "Strength Training",
+        "breakfast": "Oats with Milk & Banana",
+        "lunch": "Dal Rice & Veggies",
+        "snack": "Yogurt",
+        "dinner": "Paneer Curry with Roti",
+        "estimated_cost": 350,
+        "reason": "High protein meal aligned with strength training."
+     }},
+     "Tuesday": {{
+        "workout": "...",
         "breakfast": "...",
         "lunch": "...",
         "snack": "...",
         "dinner": "...",
-        "estimated_cost": 35,
+        "estimated_cost": 300,
         "reason": "..."
      }},
-     ... (Monday through Sunday)
+     "Wednesday": {{ ... }},
+     "Thursday": {{ ... }},
+     "Friday": {{ ... }},
+     "Saturday": {{ ... }},
+     "Sunday": {{ ... }}
   }}
 }}
 """
         system = """
 You are the Supervisor Agent.
-You have authority to coordinate specialist agents.
-Resolve conflicts and explain why the final plan is coordinated.
+Coordinate specialist inputs into a single master schedule.
+Ensure Monday through Sunday are fully generated in the `weekly_plan` object.
+Output pure JSON only.
 """
         try:
             return self.parse_json(self.ask(system, prompt, temperature=0.2, max_tokens=4500))
@@ -404,10 +392,7 @@ Return JSON:
   "reason": ""
 }}
 """
-        system = """
-You are the Monitoring Agent.
-Your job is to detect environmental changes that could invalidate parts of an existing plan.
-"""
+        system = "You are the Monitoring Agent. Detect changes that invalidate parts of an existing plan."
         try:
             return self.parse_json(self.ask(system, prompt, temperature=0.1, max_tokens=2000))
         except Exception as e:
@@ -438,9 +423,7 @@ OLD PLAN:
 MONITORING RESULT:
 {safe_json(monitor_result)}
 
-Update the plan.
-Preserve unaffected parts.
-Only modify components that need changing.
+Update the plan. Preserve unaffected parts.
 Return JSON:
 {{
   "updated_plan": {{
@@ -459,10 +442,7 @@ Return JSON:
   "new_plan_score": 0
 }}
 """
-        system = """
-You are the Replanning Agent.
-Perform targeted adaptation without unnecessarily regenerating unaffected components.
-"""
+        system = "You are the Replanning Agent. Adapt affected plan parts efficiently."
         try:
             return self.parse_json(self.ask(system, prompt, temperature=0.2, max_tokens=4500))
         except Exception as e:
@@ -588,7 +568,7 @@ for day in DAYS:
 st.sidebar.header("🥫 Pantry")
 pantry = st.sidebar.text_area(
     "Current ingredients",
-    value="Rice\nDal\nOats\nMilk\nBanana\nTomato\nOnion\nVegetables",
+    value="Rice\nDal\nOats\nMilk\nBanana\nTomato\nOnion\nVegetables\nPaneer",
     height=140
 )
 
