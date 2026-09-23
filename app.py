@@ -11,7 +11,7 @@ page_icon="🍽️",
 layout="wide"
 )
 
-class MealWorkoutAgents:
+    class MealWorkoutAgents:
 
 def __init__(self, api_key: str):
     self.client = Groq(api_key=api_key)
