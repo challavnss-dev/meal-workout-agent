@@ -1085,4 +1085,3 @@ st.caption(
     "🥗 Meal & Workout Coordination Agent | "
     "Built with Streamlit + Groq + Multi-Agent AI"
 )
-```
