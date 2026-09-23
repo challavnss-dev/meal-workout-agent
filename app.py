@@ -67,7 +67,6 @@ unsafe_allow_html=True
 
 class MealWorkoutAgents:
 
-````
 def __init__(self, api_key: str):
 
     if not api_key:
