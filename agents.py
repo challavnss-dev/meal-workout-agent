@@ -627,4 +627,3 @@ Return ONLY JSON:
         )
 
         return self.extract_json(result)
-````
