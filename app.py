@@ -5,15 +5,22 @@ import base64
 import io
 import pandas as pd
 from PIL import Image
-import plotly.express as px
 import streamlit as st
+
+# Optional Plotly Import with Fallback
+try:
+    import plotly.express as px
+    HAS_PLOTLY = True
+except ImportError:
+    HAS_PLOTLY = False
+
 from groq import Groq
 
 # ==========================================
 # 1. STREAMLIT CONFIGURATION & INITIALIZATION
 # ==========================================
 st.set_page_config(
-    page_title="NutriFit AI - Coordinated Routine Agent (Groq)",
+    page_title="NutriFit AI - Coordinated Routine Agent",
     page_icon="🏋️‍♂️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -25,14 +32,15 @@ if not api_key and "GROQ_API_KEY" in st.secrets:
     api_key = st.secrets["GROQ_API_KEY"]
 
 if not api_key:
-    st.error("🔑 API Key Missing! Please set GROQ_API_KEY in your environment variables or Streamlit secrets.")
+    st.error("🔑 API Key Missing! Please add `GROQ_API_KEY` to your Streamlit Cloud Secrets or Environment Variables.")
+    st.info("In Streamlit Cloud: Click 'Manage app' -> 'Settings' -> 'Secrets' and add:\n\n`GROQ_API_KEY = 'gsk_your_key_here'`")
     st.stop()
 
 # Initialize Groq Client
 client = Groq(api_key=api_key)
 
 # ==========================================
-# 2. HELPER FUNCTIONS
+# 2. HELPER & AGENT FUNCTIONS
 # ==========================================
 
 def encode_image_to_base64(image: Image.Image) -> str:
@@ -49,8 +57,8 @@ def analyze_pantry_image(image: Image.Image) -> list[str]:
     prompt = """
     Analyze this pantry or refrigerator image.
     Extract a clean list of all visible edible food ingredients, produce, proteins, grains, and condiments.
-    Return ONLY a valid JSON array of strings containing ingredient names. Do NOT include markdown code blocks or additional text.
-    Example output format: ["chicken breast", "spinach", "eggs", "greek yogurt", "oats"]
+    Return ONLY a valid JSON object with a single key "ingredients" containing an array of strings.
+    Example: {"ingredients": ["chicken breast", "spinach", "eggs", "greek yogurt", "oats"]}
     """
     
     try:
@@ -77,13 +85,10 @@ def analyze_pantry_image(image: Image.Image) -> list[str]:
         content = response.choices[0].message.content
         parsed = json.loads(content)
         
-        # Handle cases where LLM returns {"ingredients": [...]} or raw array
-        if isinstance(parsed, list):
+        if isinstance(parsed, dict) and "ingredients" in parsed:
+            return parsed["ingredients"]
+        elif isinstance(parsed, list):
             return parsed
-        elif isinstance(parsed, dict):
-            for key in parsed:
-                if isinstance(parsed[key], list):
-                    return parsed[key]
         return []
         
     except Exception as e:
@@ -99,7 +104,7 @@ def generate_coordinated_routine(
     daily_constraints: str,
     fitness_goal: str
 ) -> dict:
-    """Orchestrates multi-day routine using Groq's high-speed Llama-3.3 model."""
+    """Orchestrates multi-day routine using Groq's Llama-3.3 model."""
     
     system_prompt = """
     You are an elite Sports Nutritionist and Strength Coach Agent.
@@ -326,24 +331,28 @@ if "routine_result" in st.session_state:
     with tab2:
         st.subheader("Weekly Calorie and Macronutrient Distribution")
         
-        fig_cal = px.bar(
-            df_macros, 
-            x="Day", 
-            y="Calories", 
-            color="Workout",
-            title="Daily Caloric Intake vs. Workout Activity",
-            text_auto=True
-        )
-        st.plotly_chart(fig_cal, use_container_width=True)
+        if HAS_PLOTLY:
+            fig_cal = px.bar(
+                df_macros, 
+                x="Day", 
+                y="Calories", 
+                color="Workout",
+                title="Daily Caloric Intake vs. Workout Activity",
+                text_auto=True
+            )
+            st.plotly_chart(fig_cal, use_container_width=True)
 
-        fig_macro = px.line(
-            df_macros, 
-            x="Day", 
-            y=["Protein (g)", "Carbs (g)", "Fats (g)"],
-            markers=True,
-            title="Daily Macronutrient Breakdown Trends"
-        )
-        st.plotly_chart(fig_macro, use_container_width=True)
+            fig_macro = px.line(
+                df_macros, 
+                x="Day", 
+                y=["Protein (g)", "Carbs (g)", "Fats (g)"],
+                markers=True,
+                title="Daily Macronutrient Breakdown Trends"
+            )
+            st.plotly_chart(fig_macro, use_container_width=True)
+        else:
+            st.bar_chart(df_macros.set_index("Day")[["Calories"]])
+            st.line_chart(df_macros.set_index("Day")[["Protein (g)", "Carbs (g)", "Fats (g)"]])
 
     with tab3:
         st.subheader("Inventory Utilization Check")
