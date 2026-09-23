@@ -3,14 +3,7 @@ import json
 import base64
 from copy import deepcopy
 from typing import Any, Dict, Optional
-
 from groq import Groq
-
-# ============================================================
-
-# PAGE CONFIGURATION
-
-# ============================================================
 
 st.set_page_config(
 page_title="Meal & Workout Coordination Agent",
@@ -18,69 +11,11 @@ page_icon="🍽️",
 layout="wide"
 )
 
-# ============================================================
-
-# CUSTOM CSS
-
-# ============================================================
-
-st.markdown(
-""" <style>
-.main-title {
-font-size: 42px;
-font-weight: 700;
-margin-bottom: 5px;
-}
-
-```
-.subtitle {
-    font-size: 18px;
-    opacity: 0.75;
-    margin-bottom: 25px;
-}
-
-.agent-box {
-    padding: 15px;
-    border-radius: 12px;
-    border: 1px solid rgba(128,128,128,0.25);
-    margin-bottom: 10px;
-}
-
-.status-box {
-    padding: 15px;
-    border-radius: 12px;
-    border: 1px solid rgba(128,128,128,0.25);
-    margin-top: 10px;
-    margin-bottom: 10px;
-}
-</style>
-""",
-unsafe_allow_html=True
-
-)
-
-# ============================================================
-
-# MULTI-AGENT SYSTEM
-
-# ============================================================
-
 class MealWorkoutAgents:
 
 def __init__(self, api_key: str):
-
-    if not api_key:
-        raise ValueError("Groq API key is missing.")
-
     self.client = Groq(api_key=api_key)
-
-    # Groq model supporting text and image input
     self.model = "qwen/qwen3.8-27b"
-
-
-# ========================================================
-# GENERAL AI CALL
-# ========================================================
 
 def call_ai(
     self,
@@ -108,11 +43,6 @@ def call_ai(
 
     return response.choices[0].message.content or ""
 
-
-# ========================================================
-# JSON PARSER
-# ========================================================
-
 def extract_json(self, text: str) -> Dict[str, Any]:
 
     if not text:
@@ -120,7 +50,6 @@ def extract_json(self, text: str) -> Dict[str, Any]:
 
     text = text.strip()
 
-    # Remove accidental Markdown fences
     if text.startswith("```"):
         lines = text.splitlines()
 
@@ -133,7 +62,6 @@ def extract_json(self, text: str) -> Dict[str, Any]:
         text = "\n".join(lines).strip()
 
     try:
-
         result = json.loads(text)
 
         if isinstance(result, dict):
@@ -144,14 +72,12 @@ def extract_json(self, text: str) -> Dict[str, Any]:
     except Exception:
         pass
 
-    # Try to extract JSON object
     start = text.find("{")
     end = text.rfind("}")
 
-    if start != -1 and end != -1 and end > start:
+    if start != -1 and end != -1:
 
         try:
-
             result = json.loads(
                 text[start:end + 1]
             )
@@ -166,18 +92,12 @@ def extract_json(self, text: str) -> Dict[str, Any]:
         "raw_response": text
     }
 
-
-# ========================================================
-# PANTRY VISION AGENT
-# ========================================================
-
 def pantry_vision_agent(
     self,
     image_bytes: bytes
 ) -> Dict[str, Any]:
 
     if not image_bytes:
-
         return {
             "ingredients": [],
             "confidence_notes": "No image provided."
@@ -193,18 +113,15 @@ def pantry_vision_agent(
     )
 
     system_prompt = """
-````
 
 You are the Pantry Vision Agent.
 
-Look at the uploaded pantry image and identify food ingredients
-that are clearly visible.
+Identify food ingredients that are clearly visible
+in the uploaded pantry image.
 
 Do not invent ingredients.
 
 Return JSON only.
-
-Format:
 
 {
 "ingredients": [],
@@ -212,13 +129,10 @@ Format:
 }
 """
 
-```
     try:
 
         response = self.client.chat.completions.create(
-
             model=self.model,
-
             messages=[
                 {
                     "role": "system",
@@ -243,25 +157,19 @@ Format:
                     ]
                 }
             ],
-
             temperature=0.1,
-
             max_completion_tokens=1500,
-
             response_format={
                 "type": "json_object"
             }
         )
 
-        result = (
-            response
-            .choices[0]
-            .message
-            .content
+        content = (
+            response.choices[0].message.content
             or "{}"
         )
 
-        return self.extract_json(result)
+        return self.extract_json(content)
 
     except Exception as e:
 
@@ -270,112 +178,81 @@ Format:
             "error": str(e)
         }
 
-
-# ========================================================
-# WORKOUT AGENT
-# ========================================================
-
 def workout_agent(
     self,
     state: Dict[str, Any]
 ) -> Dict[str, Any]:
 
     system_prompt = """
-```
 
-You are the Workout Planning Agent.
+You are the Workout Agent.
 
-Create a weekly workout plan based on the workout schedule
-provided by the user.
-
-Respect the selected workout types.
-
-Keep the recommendations practical.
-
-Do not provide medical diagnosis or treatment.
+Create a practical weekly workout plan based on
+the user's selected workout schedule.
 
 Return JSON only.
 """
 
-```
     user_prompt = f"""
-```
 
 USER STATE:
 
 {json.dumps(state, indent=2)}
 
-Create a workout plan for:
+Create a workout plan for Monday through Sunday.
 
-Monday
-Tuesday
-Wednesday
-Thursday
-Friday
-Saturday
-Sunday
+For every day include:
 
-For every day provide:
+workout
+duration_minutes
+intensity
 
-* workout
-* duration_minutes
-* intensity
-* notes
-
-Return JSON.
+notes
 """
 
-```
-    try:
+  try:
 
-        result = self.call_ai(
-            system_prompt,
-            user_prompt,
-            temperature=0.2,
-            max_tokens=3000
-        )
+      result = self.call_ai(
+          system_prompt,
+          user_prompt,
+          temperature=0.2,
+          max_tokens=3000
+      )
 
-        return self.extract_json(result)
+      return self.extract_json(result)
 
-    except Exception as e:
+  except Exception as e:
 
-        return {
-            "workouts": {},
-            "error": str(e)
-        }
-
-
-# ========================================================
-# MEAL AGENT
-# ========================================================
+      return {
+          "workouts": {},
+          "error": str(e)
+      }
 
 def meal_agent(
-    self,
-    state: Dict[str, Any],
-    workout_result: Dict[str, Any]
+self,
+state: Dict[str, Any],
+workout_result: Dict[str, Any]
 ) -> Dict[str, Any]:
 
-    system_prompt = """
-```
+  system_prompt = """
 
-You are the Meal Planning Agent.
+You are the Meal Agent.
 
-Create meals that coordinate with the user's workouts,
-food preferences, available pantry ingredients,
-budget and cooking time.
+Create meals coordinated with:
 
-Prefer ingredients already available.
+workouts
+food preference
+pantry
+budget
+cooking time
+foods to avoid
 
-Avoid foods listed in the user's foods-to-avoid list.
-
-Do not provide medical or disease-treatment advice.
+Prefer available pantry ingredients.
 
 Return JSON only.
 """
 
-```
     user_prompt = f"""
-```
 
 USER STATE:
 
@@ -385,84 +262,73 @@ WORKOUT PLAN:
 
 {json.dumps(workout_result, indent=2)}
 
-Create meals for every day of the week.
+Create meals for Monday through Sunday.
 
-Each day must contain:
+For every day include:
 
-* breakfast
-* lunch
-* snack
-* dinner
-* approximate_cost
-* reason
+breakfast
+lunch
+snack
+dinner
+approximate_cost
 
-Return JSON.
+reason
 """
 
-```
-    try:
+  try:
 
-        result = self.call_ai(
-            system_prompt,
-            user_prompt,
-            temperature=0.3,
-            max_tokens=4500
-        )
+      result = self.call_ai(
+          system_prompt,
+          user_prompt,
+          temperature=0.3,
+          max_tokens=4500
+      )
 
-        return self.extract_json(result)
+      return self.extract_json(result)
 
-    except Exception as e:
+  except Exception as e:
 
-        return {
-            "meals": {},
-            "error": str(e)
-        }
-
-
-# ========================================================
-# CONSTRAINT AGENT
-# ========================================================
+      return {
+          "meals": {},
+          "error": str(e)
+      }
 
 def constraint_agent(
-    self,
-    state: Dict[str, Any],
-    workout_result: Dict[str, Any],
-    meal_result: Dict[str, Any]
+self,
+state: Dict[str, Any],
+workout_result: Dict[str, Any],
+meal_result: Dict[str, Any]
 ) -> Dict[str, Any]:
 
-    system_prompt = """
-```
+  system_prompt = """
 
-You are the Constraint Checking Agent.
+You are the Constraint Agent.
 
-Check the proposed plan against:
+Check the plan against:
 
-1. Food preference
-2. Foods to avoid
-3. Pantry availability
-4. Weekly budget
-5. Cooking time
-6. Workout schedule
-7. Practicality
+food preference
+foods to avoid
+pantry
+weekly budget
+cooking time
+workout schedule
 
 Identify conflicts and corrections.
 
 Return JSON only.
 """
 
-```
     user_prompt = f"""
-```
 
 USER STATE:
 
 {json.dumps(state, indent=2)}
 
-WORKOUT PLAN:
+WORKOUT:
 
 {json.dumps(workout_result, indent=2)}
 
-MEAL PLAN:
+MEALS:
 
 {json.dumps(meal_result, indent=2)}
 
@@ -471,7 +337,6 @@ Return:
 {{
 "status": "",
 "estimated_budget": 0,
-"budget_limit": 0,
 "violations": [],
 "suggestions": [],
 "pantry_items_used": [],
@@ -479,7 +344,6 @@ Return:
 }}
 """
 
-```
     try:
 
         result = self.call_ai(
@@ -495,14 +359,8 @@ Return:
 
         return {
             "status": "ERROR",
-            "violations": [str(e)],
-            "suggestions": []
+            "violations": [str(e)]
         }
-
-
-# ========================================================
-# COORDINATOR AGENT
-# ========================================================
 
 def coordinator_agent(
     self,
@@ -513,32 +371,18 @@ def coordinator_agent(
 ) -> Dict[str, Any]:
 
     system_prompt = """
-```
 
-You are the Supervisor / Coordinator Agent.
+You are the Supervisor Coordinator Agent.
 
-You coordinate multiple specialist agents.
+Combine the outputs of the Workout Agent,
+Meal Agent and Constraint Agent.
 
-Combine:
-
-* workout recommendations
-* meal recommendations
-* pantry information
-* user preferences
-* budget
-* cooking time
-* constraints
-
-Create one coordinated weekly plan.
-
-If conflicts exist, correct them.
+Create one coordinated weekly meal and workout plan.
 
 Return JSON only.
 """
 
-```
     user_prompt = f"""
-```
 
 USER STATE:
 
@@ -556,143 +400,112 @@ CONSTRAINT AGENT:
 
 {json.dumps(constraint_result, indent=2)}
 
-Create the final coordinated plan.
+Create the final weekly plan.
 
-For every day provide:
+For every day include:
 
-* workout
-* breakfast
-* lunch
-* snack
-* dinner
-* reason
+workout
+breakfast
+lunch
+snack
+dinner
+reason
 
-Also provide:
+Also include:
 
-* summary
-* estimated_weekly_budget
-* grocery_list
-* constraint_status
-* active_agents
-* coordinator_explanation
+summary
+estimated_weekly_budget
+grocery_list
+constraint_status
+active_agents
 
-Return JSON.
+coordinator_explanation
 """
 
-```
-    try:
+  try:
 
-        result = self.call_ai(
-            system_prompt,
-            user_prompt,
-            temperature=0.2,
-            max_tokens=6000
-        )
+      result = self.call_ai(
+          system_prompt,
+          user_prompt,
+          temperature=0.2,
+          max_tokens=6000
+      )
 
-        return self.extract_json(result)
+      return self.extract_json(result)
 
-    except Exception as e:
+  except Exception as e:
 
-        return {
-            "summary": "Coordinator failed.",
-            "weekly_plan": {},
-            "grocery_list": [],
-            "error": str(e)
-        }
-
-
-# ========================================================
-# CREATE PLAN
-# ========================================================
+      return {
+          "weekly_plan": {},
+          "grocery_list": [],
+          "error": str(e)
+      }
 
 def create_plan(
-    self,
-    state: Dict[str, Any]
+self,
+state: Dict[str, Any]
 ) -> Dict[str, Any]:
 
-    try:
+  workout_result = self.workout_agent(state)
 
-        # Agent 1
-        workout_result = self.workout_agent(state)
+  meal_result = self.meal_agent(
+      state,
+      workout_result
+  )
 
-        # Agent 2
-        meal_result = self.meal_agent(
-            state,
-            workout_result
-        )
+  constraint_result = self.constraint_agent(
+      state,
+      workout_result,
+      meal_result
+  )
 
-        # Agent 3
-        constraint_result = self.constraint_agent(
-            state,
-            workout_result,
-            meal_result
-        )
+  final_plan = self.coordinator_agent(
+      state,
+      workout_result,
+      meal_result,
+      constraint_result
+  )
 
-        # Agent 4
-        final_plan = self.coordinator_agent(
-            state,
-            workout_result,
-            meal_result,
-            constraint_result
-        )
-
-        return {
-            "plan": final_plan,
-            "workout_agent": workout_result,
-            "meal_agent": meal_result,
-            "constraint_agent": constraint_result,
-            "agents_used": [
-                "Workout Agent",
-                "Meal Agent",
-                "Constraint Agent",
-                "Supervisor / Coordinator Agent"
-            ]
-        }
-
-    except Exception as e:
-
-        return {
-            "plan": {},
-            "error": str(e),
-            "agents_used": []
-        }
-
-
-# ========================================================
-# MONITORING AGENT
-# ========================================================
+  return {
+      "plan": final_plan,
+      "workout_agent": workout_result,
+      "meal_agent": meal_result,
+      "constraint_agent": constraint_result,
+      "agents_used": [
+          "Workout Agent",
+          "Meal Agent",
+          "Constraint Agent",
+          "Supervisor / Coordinator Agent"
+      ]
+  }
 
 def monitoring_agent(
-    self,
-    old_state: Dict[str, Any],
-    new_state: Dict[str, Any]
+self,
+old_state: Dict[str, Any],
+new_state: Dict[str, Any]
 ) -> Dict[str, Any]:
 
-    system_prompt = """
-```
+  system_prompt = """
 
 You are the Monitoring Agent.
 
-Compare the previous state with the new state.
+Compare the old state and new state.
 
 Detect changes in:
 
-* pantry
-* workout schedule
-* budget
-* cooking time
-* food preference
-* foods to avoid
-* newly detected ingredients
+pantry
+workout
+budget
+cooking time
+food preference
+foods to avoid
 
-Determine whether replanning is necessary.
+Determine whether replanning is required.
 
 Return JSON only.
 """
 
-```
     user_prompt = f"""
-```
 
 OLD STATE:
 
@@ -714,7 +527,6 @@ Return:
 }}
 """
 
-```
     try:
 
         result = self.call_ai(
@@ -732,59 +544,32 @@ Return:
             "change_detected": True,
             "replan_required": True,
             "changes": [str(e)],
-            "affected_days": [],
-            "affected_components": [],
             "reason": str(e)
         }
-
-
-# ========================================================
-# REPLANNING AGENT
-# ========================================================
 
 def replanning_agent(
     self,
     old_state: Dict[str, Any],
     new_state: Dict[str, Any],
-    old_plan: Optional[Dict[str, Any]] = None
+    old_plan: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
 
     system_prompt = """
-```
 
 You are the Replanning Agent.
 
-The user's real-world situation has changed.
+The user's situation has changed.
 
-Compare the old state with the new state.
+Compare the old state and new state.
 
-Preserve parts of the old plan that are still valid.
+Preserve valid parts of the old plan.
 
-Change only the affected components.
-
-Examples:
-
-If bananas are unavailable:
-replace banana-based meals.
-
-If workout time changes:
-adjust meal timing.
-
-If budget decreases:
-choose cheaper meals.
-
-If cooking time decreases:
-choose simpler meals.
-
-If a workout changes:
-coordinate the meals with the new workout.
+Change only affected components.
 
 Return JSON only.
 """
 
-```
     user_prompt = f"""
-```
 
 OLD STATE:
 
@@ -798,7 +583,7 @@ OLD PLAN:
 
 {json.dumps(old_plan or {}, indent=2)}
 
-Create the updated coordinated plan.
+Create an updated weekly plan.
 
 Return:
 
@@ -811,7 +596,6 @@ Return:
 }}
 """
 
-```
     try:
 
         result = self.call_ai(
@@ -831,60 +615,28 @@ Return:
             "reason": str(e),
             "new_grocery_list": []
         }
-```
-
-# ============================================================
-
-# GET GROQ API KEY
-
-# ============================================================
+============================================================
+GROQ API
+============================================================
 
 try:
-
-```
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-```
-
 except Exception:
-
-```
 st.error(
-    "GROQ_API_KEY is missing. "
-    "Add it in Streamlit Cloud → Manage app → Settings → Secrets."
+"GROQ_API_KEY is missing. "
+"Add it in Streamlit Cloud → Manage app → Settings → Secrets."
 )
-
 st.stop()
-```
-
-# ============================================================
-
-# INITIALIZE AGENTS
-
-# ============================================================
 
 try:
-
-```
-agents = MealWorkoutAgents(
-    GROQ_API_KEY
-)
-```
-
+agents = MealWorkoutAgents(GROQ_API_KEY)
 except Exception as e:
-
-```
-st.error(
-    f"Unable to initialize AI agents: {e}"
-)
-
+st.error(f"Could not initialize AI agents: {e}")
 st.stop()
-```
 
-# ============================================================
-
-# SESSION STATE
-
-# ============================================================
+============================================================
+SESSION STATE
+============================================================
 
 if "current_state" not in st.session_state:
 st.session_state.current_state = None
@@ -901,36 +653,26 @@ st.session_state.monitor_result = None
 if "replan_result" not in st.session_state:
 st.session_state.replan_result = None
 
-# ============================================================
+============================================================
+HEADER
+============================================================
 
-# HEADER
+st.title("🍽️ Meal & Workout Coordination Agent")
 
-# ============================================================
-
-st.markdown(
-'<div class="main-title">🍽️ Meal & Workout Coordination Agent</div>',
-unsafe_allow_html=True
+st.write(
+"An adaptive multi-agent system that coordinates "
+"meals, workouts, pantry, budget and daily constraints."
 )
 
-st.markdown(
-""" <div class="subtitle">
-An adaptive multi-agent system that coordinates meals,
-workouts, pantry inventory, budget and daily constraints. </div>
-""",
-unsafe_allow_html=True
-)
-
-# ============================================================
-
-# SIDEBAR
-
-# ============================================================
+============================================================
+SIDEBAR
+============================================================
 
 st.sidebar.header("👤 User Context")
 
 name = st.sidebar.text_input(
 "Name",
-value="User"
+"User"
 )
 
 food_preference = st.sidebar.selectbox(
@@ -945,7 +687,7 @@ food_preference = st.sidebar.selectbox(
 
 foods_to_avoid = st.sidebar.text_input(
 "Foods to Avoid",
-placeholder="Example: peanuts, mushrooms"
+""
 )
 
 budget = st.sidebar.number_input(
@@ -958,18 +700,16 @@ step=50
 
 cooking_time = st.sidebar.slider(
 "Maximum Cooking Time (minutes)",
-min_value=10,
-max_value=120,
-value=30
+10,
+120,
+30
 )
 
-# ============================================================
+============================================================
+WORKOUT SCHEDULE
+============================================================
 
-# WORKOUT SCHEDULE
-
-# ============================================================
-
-st.sidebar.header("🏋️ Weekly Workout Schedule")
+st.sidebar.header("🏋️ Workout Schedule")
 
 days = [
 "Monday",
@@ -993,54 +733,22 @@ workout_schedule = {}
 
 for day in days:
 
-```
 workout_schedule[day] = st.sidebar.selectbox(
     day,
     workout_options,
-    index=0 if day in [
-        "Monday",
-        "Thursday"
-    ]
-    else 4 if day in [
-        "Wednesday",
-        "Friday",
-        "Sunday"
-    ]
-    else 1 if day == "Tuesday"
-    else 2,
-    key=f"workout_{day}"
+    key="workout_" + day
 )
-```
-
-# ============================================================
-
-# PANTRY
-
-# ============================================================
+============================================================
+PANTRY
+============================================================
 
 st.sidebar.header("🥫 Pantry")
 
 pantry_text = st.sidebar.text_area(
 "Available Ingredients",
-placeholder=(
-"Example:\n"
-"Rice\n"
-"Dal\n"
-"Oats\n"
-"Milk\n"
-"Banana\n"
-"Tomato\n"
-"Onion\n"
-"Vegetables"
-),
-height=160
+"Rice\nDal\nOats\nMilk\nBanana\nTomato\nOnion\nVegetables",
+height=150
 )
-
-# ============================================================
-
-# PANTRY IMAGE
-
-# ============================================================
 
 pantry_image = st.sidebar.file_uploader(
 "📷 Upload Pantry Image",
@@ -1052,56 +760,37 @@ type=[
 ]
 )
 
-# ============================================================
-
-# BUILD USER STATE
-
-# ============================================================
+============================================================
+BUILD STATE
+============================================================
 
 def build_state():
 
-```
 return {
-
     "name": name,
-
     "food_preference": food_preference,
-
     "foods_to_avoid": foods_to_avoid,
-
     "weekly_budget": budget,
-
     "maximum_cooking_time_minutes": cooking_time,
-
     "workout_schedule": workout_schedule,
-
     "pantry": pantry_text
 }
-```
+============================================================
+GENERATE PLAN
+============================================================
 
-# ============================================================
-
-# GENERATE PLAN
-
-# ============================================================
-
-st.header("🚀 Generate Coordinated Plan")
+st.header("🚀 Generate Plan")
 
 if st.button(
 "🚀 GENERATE COORDINATED PLAN",
 use_container_width=True
 ):
 
-```
 with st.spinner(
-    "AI agents are coordinating your weekly plan..."
+    "AI agents are coordinating your plan..."
 ):
 
     state = build_state()
-
-    # ---------------------------------------------
-    # Pantry Vision Agent
-    # ---------------------------------------------
 
     if pantry_image is not None:
 
@@ -1109,24 +798,18 @@ with st.spinner(
             pantry_image.getvalue()
         )
 
-        st.session_state.vision_result = vision_result
-
-        detected = vision_result.get(
-            "ingredients",
-            []
+        st.session_state.vision_result = (
+            vision_result
         )
 
-        state[
-            "vision_detected_ingredients"
-        ] = detected
+        state["vision_detected_ingredients"] = (
+            vision_result.get(
+                "ingredients",
+                []
+            )
+        )
 
-    # ---------------------------------------------
-    # Main Multi-Agent System
-    # ---------------------------------------------
-
-    result = agents.create_plan(
-        state
-    )
+    result = agents.create_plan(state)
 
     st.session_state.current_state = state
 
@@ -1135,24 +818,17 @@ with st.spinner(
     st.session_state.monitor_result = None
 
     st.session_state.replan_result = None
-```
-
-# ============================================================
-
-# DISPLAY PANTRY VISION
-
-# ============================================================
+============================================================
+PANTRY VISION RESULT
+============================================================
 
 if st.session_state.vision_result:
 
-```
 st.subheader("📷 Pantry Vision Agent")
 
-vision = st.session_state.vision_result
-
-ingredients = vision.get(
-    "ingredients",
-    []
+ingredients = (
+    st.session_state.vision_result
+    .get("ingredients", [])
 )
 
 if ingredients:
@@ -1165,29 +841,20 @@ if ingredients:
         )
     )
 
-notes = vision.get(
-    "confidence_notes"
+notes = (
+    st.session_state.vision_result
+    .get("confidence_notes")
 )
 
 if notes:
     st.caption(notes)
-```
-
-# ============================================================
-
-# DISPLAY PLAN
-
-# ============================================================
+============================================================
+DISPLAY PLAN
+============================================================
 
 if st.session_state.plan_result:
 
-```
 result = st.session_state.plan_result
-
-plan = result.get(
-    "plan",
-    {}
-)
 
 if result.get("error"):
 
@@ -1195,220 +862,210 @@ if result.get("error"):
         result["error"]
     )
 
-else:
+plan = result.get(
+    "plan",
+    {}
+)
 
-    st.header("📅 Coordinated Weekly Plan")
+weekly_plan = plan.get(
+    "weekly_plan",
+    {}
+)
 
-    weekly_plan = plan.get(
-        "weekly_plan",
+st.header("📅 Weekly Coordinated Plan")
+
+for day in days:
+
+    day_data = weekly_plan.get(
+        day,
         {}
     )
 
-    for day in days:
+    with st.expander(
+        "📌 " + day,
+        expanded=True
+    ):
 
-        day_data = weekly_plan.get(
-            day,
-            {}
-        )
+        if isinstance(day_data, dict):
 
-        with st.expander(
-            f"📌 {day}",
-            expanded=True
-        ):
-
-            if isinstance(day_data, dict):
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-
-                    st.markdown(
-                        f"**🏋️ Workout:** "
-                        f"{day_data.get('workout', 'Not specified')}"
-                    )
-
-                    st.markdown(
-                        f"**🍳 Breakfast:** "
-                        f"{day_data.get('breakfast', 'Not specified')}"
-                    )
-
-                    st.markdown(
-                        f"**🥗 Lunch:** "
-                        f"{day_data.get('lunch', 'Not specified')}"
-                    )
-
-                with col2:
-
-                    st.markdown(
-                        f"**🍎 Snack:** "
-                        f"{day_data.get('snack', 'Not specified')}"
-                    )
-
-                    st.markdown(
-                        f"**🍲 Dinner:** "
-                        f"{day_data.get('dinner', 'Not specified')}"
-                    )
-
-                    st.markdown(
-                        f"**💡 Reason:** "
-                        f"{day_data.get('reason', 'Not specified')}"
-                    )
-
-
-    # ====================================================
-    # SUMMARY
-    # ====================================================
-
-    st.header("📊 Plan Summary")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-
-        st.metric(
-            "Estimated Weekly Budget",
-            f"₹{plan.get('estimated_weekly_budget', 0)}"
-        )
-
-    with col2:
-
-        st.metric(
-            "Constraint Status",
-            str(
-                plan.get(
-                    "constraint_status",
-                    "Not available"
+            st.write(
+                "🏋️ **Workout:**",
+                day_data.get(
+                    "workout",
+                    "Not specified"
                 )
             )
-        )
 
-    with col3:
-
-        st.metric(
-            "Active Agents",
-            len(
-                result.get(
-                    "agents_used",
-                    []
+            st.write(
+                "🍳 **Breakfast:**",
+                day_data.get(
+                    "breakfast",
+                    "Not specified"
                 )
             )
-        )
 
-
-    # ====================================================
-    # GROCERY LIST
-    # ====================================================
-
-    st.header("🛒 Grocery List")
-
-    grocery_list = plan.get(
-        "grocery_list",
-        []
-    )
-
-    if grocery_list:
-
-        for item in grocery_list:
-
-            st.checkbox(
-                str(item),
-                key=f"grocery_{str(item)}"
+            st.write(
+                "🥗 **Lunch:**",
+                day_data.get(
+                    "lunch",
+                    "Not specified"
+                )
             )
 
-    else:
+            st.write(
+                "🍎 **Snack:**",
+                day_data.get(
+                    "snack",
+                    "Not specified"
+                )
+            )
 
-        st.info(
-            "No additional grocery items were generated."
-        )
+            st.write(
+                "🍲 **Dinner:**",
+                day_data.get(
+                    "dinner",
+                    "Not specified"
+                )
+            )
+
+            st.write(
+                "💡 **Reason:**",
+                day_data.get(
+                    "reason",
+                    "Not specified"
+                )
+            )
 
 
-    # ====================================================
-    # COORDINATOR EXPLANATION
-    # ====================================================
+# ========================================================
+# SUMMARY
+# ========================================================
 
-    st.header("🧠 Coordinator Explanation")
+st.header("📊 Plan Summary")
 
-    st.info(
-        plan.get(
-            "coordinator_explanation",
-            "The coordinator combined the specialist agents."
+col1, col2, col3 = st.columns(3)
+
+with col1:
+
+    st.metric(
+        "Estimated Budget",
+        "₹"
+        + str(
+            plan.get(
+                "estimated_weekly_budget",
+                0
+            )
         )
     )
-```
 
-# ============================================================
+with col2:
 
-# AGENT DASHBOARD
+    st.metric(
+        "Constraint Status",
+        str(
+            plan.get(
+                "constraint_status",
+                "Not available"
+            )
+        )
+    )
 
-# ============================================================
+with col3:
 
-st.header("🤖 Agent Dashboard")
+    st.metric(
+        "Agents",
+        len(
+            result.get(
+                "agents_used",
+                []
+            )
+        )
+    )
 
-agent_names = [
+
+# ========================================================
+# GROCERY LIST
+# ========================================================
+
+st.subheader("🛒 Grocery List")
+
+grocery_list = plan.get(
+    "grocery_list",
+    []
+)
+
+for index, item in enumerate(
+    grocery_list
+):
+
+    st.checkbox(
+        str(item),
+        key=f"grocery_{index}"
+    )
+
+
+# ========================================================
+# COORDINATOR
+# ========================================================
+
+st.subheader("🧠 Coordinator Explanation")
+
+st.info(
+    plan.get(
+        "coordinator_explanation",
+        "The coordinator combined the specialist agents."
+    )
+)
+============================================================
+AGENT DASHBOARD
+============================================================
+
+st.header("🤖 AI Agent Dashboard")
+
+agents_info = [
 (
 "🥗 Meal Agent",
-"Creates meals based on preferences, pantry, budget and cooking time."
+"Creates coordinated meals."
 ),
 (
 "🏋️ Workout Agent",
-"Creates the weekly workout structure."
+"Creates workout plans."
 ),
 (
 "📷 Pantry Vision Agent",
-"Identifies visible ingredients from pantry images."
+"Reads ingredients from pantry images."
 ),
 (
 "🔍 Constraint Agent",
-"Checks budget, pantry, preferences and cooking constraints."
+"Checks budget and constraints."
 ),
 (
-"🧠 Supervisor / Coordinator",
-"Combines all agent outputs into one coordinated plan."
+"🧠 Coordinator Agent",
+"Combines all agent outputs."
 ),
 (
 "👀 Monitoring Agent",
-"Detects changes in the user's situation."
+"Detects changes."
 ),
 (
 "🔄 Replanning Agent",
-"Updates the plan when important conditions change."
+"Updates the plan after changes."
 )
 ]
 
-cols = st.columns(3)
+for agent_name, description in agents_info:
 
-for index, (agent_name, description) in enumerate(
-agent_names
-):
-
-```
-with cols[index % 3]:
-
-    st.markdown(
-        f"""
-        <div class="agent-box">
-        <strong>{agent_name}</strong><br>
-        <small>{description}</small>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-```
-
-# ============================================================
-
-# CONTINUOUS MONITORING
-
-# ============================================================
+st.info(
+    f"**{agent_name}** — {description}"
+)
+============================================================
+MONITORING
+============================================================
 
 st.header("👀 Continuous Monitoring & Replanning")
 
-st.write(
-"Tell the monitoring agent what changed in the user's situation."
-)
-
 change_text = st.text_area(
-"Describe a change",
+"What changed?",
 placeholder=(
 "Example: I ran out of bananas and "
 "my workout moved from 6 PM to 8 PM."
@@ -1420,7 +1077,6 @@ if st.button(
 use_container_width=True
 ):
 
-```
 if st.session_state.current_state is None:
 
     st.warning(
@@ -1430,13 +1086,13 @@ if st.session_state.current_state is None:
 elif not change_text.strip():
 
     st.warning(
-        "Please describe what changed."
+        "Please describe the change."
     )
 
 else:
 
     with st.spinner(
-        "Monitoring agent is analyzing the change..."
+        "Monitoring and replanning..."
     ):
 
         old_state = deepcopy(
@@ -1447,13 +1103,15 @@ else:
             st.session_state.current_state
         )
 
-        new_state[
-            "latest_change"
-        ] = change_text
+        new_state["latest_change"] = (
+            change_text
+        )
 
-        monitor_result = agents.monitoring_agent(
-            old_state,
-            new_state
+        monitor_result = (
+            agents.monitoring_agent(
+                old_state,
+                new_state
+            )
         )
 
         st.session_state.monitor_result = (
@@ -1469,40 +1127,38 @@ else:
 
             if st.session_state.plan_result:
 
-                old_plan = st.session_state.plan_result.get(
-                    "plan",
-                    {}
+                old_plan = (
+                    st.session_state.plan_result
+                    .get("plan", {})
                 )
 
-            replan_result = agents.replanning_agent(
-                old_state,
-                new_state,
-                old_plan
+            replan_result = (
+                agents.replanning_agent(
+                    old_state,
+                    new_state,
+                    old_plan
+                )
             )
 
             st.session_state.replan_result = (
                 replan_result
             )
 
-            # Update persistent state
             st.session_state.current_state = (
                 new_state
             )
-```
-
-# ============================================================
-
-# MONITORING RESULT
-
-# ============================================================
+============================================================
+MONITOR RESULT
+============================================================
 
 if st.session_state.monitor_result:
 
-```
-monitor = st.session_state.monitor_result
+monitor = (
+    st.session_state.monitor_result
+)
 
 st.subheader(
-    "🔍 Monitoring Agent Result"
+    "🔍 Monitoring Result"
 )
 
 if monitor.get(
@@ -1520,101 +1176,63 @@ else:
         "No important change detected."
     )
 
-changes = monitor.get(
-    "changes",
-    []
-)
+if monitor.get("changes"):
 
-if changes:
+    st.write("**Changes:**")
 
-    st.markdown(
-        "**Detected Changes:**"
-    )
-
-    for change in changes:
+    for change in monitor["changes"]:
 
         st.write(
-            "• "
-            + str(change)
+            "• " + str(change)
         )
 
-affected_days = monitor.get(
-    "affected_days",
-    []
-)
+if monitor.get("affected_days"):
 
-if affected_days:
-
-    st.markdown(
-        "**Affected Days:** "
+    st.write(
+        "**Affected days:** "
         + ", ".join(
             str(x)
-            for x in affected_days
+            for x in monitor["affected_days"]
         )
     )
 
-affected_components = monitor.get(
-    "affected_components",
-    []
-)
+if monitor.get("affected_components"):
 
-if affected_components:
-
-    st.markdown(
-        "**Affected Components:** "
+    st.write(
+        "**Affected components:** "
         + ", ".join(
             str(x)
-            for x in affected_components
+            for x in monitor["affected_components"]
         )
     )
 
-reason = monitor.get(
-    "reason"
-)
-
-if reason:
+if monitor.get("reason"):
 
     st.info(
-        reason
+        monitor["reason"]
     )
-```
-
-# ============================================================
-
-# REPLANNING RESULT
-
-# ============================================================
+============================================================
+REPLAN RESULT
+============================================================
 
 if st.session_state.replan_result:
 
-```
-replan = st.session_state.replan_result
+replan = (
+    st.session_state.replan_result
+)
 
 st.subheader(
-    "🔄 Replanning Agent Result"
+    "🔄 Updated Plan"
 )
 
-updated_plan = replan.get(
-    "updated_plan",
-    {}
-)
+if replan.get("changes_made"):
 
-changes_made = replan.get(
-    "changes_made",
-    []
-)
+    st.write("**Changes made:**")
 
-if changes_made:
-
-    st.markdown(
-        "**Changes Made:**"
-    )
-
-    for change in changes_made:
+    for change in replan["changes_made"]:
 
         st.write(
-            "• "
-            + str(change)
+            "• " + str(change)
         )
 
 if replan.get("reason"):
@@ -1623,8 +1241,9 @@ if replan.get("reason"):
         replan["reason"]
     )
 
-st.markdown(
-    "### 📅 Updated Plan"
+updated_plan = replan.get(
+    "updated_plan",
+    {}
 )
 
 for day in days:
@@ -1637,11 +1256,11 @@ for day in days:
     if isinstance(day_data, dict):
 
         with st.expander(
-            f"🔄 Updated {day}"
+            "🔄 " + day
         ):
 
             st.write(
-                "**Workout:**",
+                "🏋️ Workout:",
                 day_data.get(
                     "workout",
                     "Not specified"
@@ -1649,7 +1268,7 @@ for day in days:
             )
 
             st.write(
-                "**Breakfast:**",
+                "🍳 Breakfast:",
                 day_data.get(
                     "breakfast",
                     "Not specified"
@@ -1657,7 +1276,7 @@ for day in days:
             )
 
             st.write(
-                "**Lunch:**",
+                "🥗 Lunch:",
                 day_data.get(
                     "lunch",
                     "Not specified"
@@ -1665,7 +1284,7 @@ for day in days:
             )
 
             st.write(
-                "**Snack:**",
+                "🍎 Snack:",
                 day_data.get(
                     "snack",
                     "Not specified"
@@ -1673,7 +1292,7 @@ for day in days:
             )
 
             st.write(
-                "**Dinner:**",
+                "🍲 Dinner:",
                 day_data.get(
                     "dinner",
                     "Not specified"
@@ -1681,7 +1300,7 @@ for day in days:
             )
 
             st.write(
-                "**Reason:**",
+                "💡 Reason:",
                 day_data.get(
                     "reason",
                     "Not specified"
@@ -1689,78 +1308,29 @@ for day in days:
             )
 
 
-new_grocery_list = replan.get(
-    "new_grocery_list",
-    []
-)
+if replan.get("new_grocery_list"):
 
-if new_grocery_list:
-
-    st.markdown(
-        "### 🛒 Updated Grocery List"
+    st.subheader(
+        "🛒 Updated Grocery List"
     )
 
-    for item in new_grocery_list:
+    for index, item in enumerate(
+        replan["new_grocery_list"]
+    ):
 
         st.checkbox(
             str(item),
-            key=f"new_grocery_{str(item)}"
+            key=f"updated_grocery_{index}"
         )
-```
-
-# ============================================================
-
-# AGENTIC WORKFLOW
-
-# ============================================================
+============================================================
+AGENTIC WORKFLOW
+============================================================
 
 st.header("🔄 Agentic Workflow")
 
-st.markdown(
-"""
-**Observe → Analyze → Check → Decide → Act → Monitor → Replan**
-"""
+st.write(
+"Observe → Analyze → Check → Decide → Act → Monitor → Replan"
 )
-
-workflow_cols = st.columns(7)
-
-workflow = [
-("👀", "Observe"),
-("🧠", "Analyze"),
-("🔍", "Check"),
-("🎯", "Decide"),
-("⚡", "Act"),
-("📡", "Monitor"),
-("🔄", "Replan")
-]
-
-for col, (icon, label) in zip(
-workflow_cols,
-workflow
-):
-
-```
-with col:
-
-    st.markdown(
-        f"""
-        <div class="agent-box"
-             style="text-align:center;">
-        <div style="font-size:28px;">
-        {icon}
-        </div>
-        <strong>{label}</strong>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-```
-
-# ============================================================
-
-# FOOTER
-
-# ============================================================
 
 st.divider()
 
@@ -1769,6 +1339,6 @@ st.caption(
 )
 
 st.caption(
-"This application is a planning assistant and "
-"is not a medical diagnosis or treatment system."
+"This is a planning assistant and not a medical "
+"diagnosis or treatment system."
 )
