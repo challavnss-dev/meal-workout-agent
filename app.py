@@ -11,9 +11,9 @@ page_icon="🍽️",
 layout="wide"
 )
 
-    class MealWorkoutAgents:
+class MealWorkoutAgents:
 
-def __init__(self, api_key: str):
+    def __init__(self, api_key: str):
     self.client = Groq(api_key=api_key)
     self.model = "qwen/qwen3.8-27b"
 
