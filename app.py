@@ -2,7 +2,6 @@ import os
 import json
 import re
 import random
-from copy import deepcopy
 from typing import Any, Dict, List
 import streamlit as st
 from groq import Groq
@@ -201,7 +200,6 @@ def sanitize_plan_against_avoidance(plan: Dict[str, Any], foods_to_avoid_str: st
 def generate_fallback_plan(user_state: Dict[str, Any]) -> Dict[str, Any]:
     pref = user_state.get("food_preference", "Vegetarian")
     
-    # Expanded meal pools grouped by meal type & workout intensity
     pools = {
         "Vegetarian": {
             "heavy": {
@@ -235,8 +233,6 @@ def generate_fallback_plan(user_state: Dict[str, Any]) -> Dict[str, Any]:
 
     selected_diet = pools.get(pref, pools["Vegetarian"])
     weekly_plan = {}
-    
-    # Track used meals to prevent exact duplication across days
     used_meals = set()
 
     for day in DAYS:
@@ -254,7 +250,6 @@ def generate_fallback_plan(user_state: Dict[str, Any]) -> Dict[str, Any]:
             used_meals.add(chosen)
             return chosen
 
-        # Dynamic Targets per workout
         if workout_type == "Strength Training":
             target = "2,200 kcal | 105g Protein | High Carbs"
             reason = "High carbohydrate and protein density engineered to support muscle hypertrophy and recovery."
@@ -267,7 +262,7 @@ def generate_fallback_plan(user_state: Dict[str, Any]) -> Dict[str, Any]:
             target = "1,900 kcal | 80g Protein | Endurance Fuel"
             reason = "Moderate complex carbs to replenish glycogen depleted during cardiovascular training."
             cost = random.randint(280, 350)
-        else: # Rest Day
+        else:
             target = "1,650 kcal | 70g Protein | Lower Carbs"
             reason = "Caloric restriction with maintenance protein to prevent surplus fat storage on low-activity days."
             cost = random.randint(220, 300)
@@ -307,7 +302,7 @@ class FitFuelAgents:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.4, # Slightly higher temperature for menu diversity
+                temperature=0.5,
                 max_completion_tokens=4000,
                 response_format={"type": "json_object"}
             )
@@ -318,37 +313,25 @@ class FitFuelAgents:
     def generate_full_plan(self, state: Dict[str, Any]) -> Dict[str, Any]:
         avoid = state.get("foods_to_avoid", "")
         system_prompt = f"""
-You are the Supervisor Agent for FitFuel AI overseeing:
-1. Workout Planning Specialist
-2. Portion & Macro Control Specialist
-3. Pantry Inventory Specialist
+You are the Supervisor Agent for FitFuel AI.
+Create a UNIQUE, tailored 7-day meal plan based on the provided user profile.
 
-CRITICAL VARIATION & PORTION RULES:
-1. EACH OF THE 7 DAYS MUST HAVE A UNIQUE MEAL PLAN. Do NOT repeat the same breakfast, lunch, or dinner across multiple days.
-2. TAILOR MEALS DIRECTLY TO THE WORKOUT INTENSITY FOR THAT DAY:
-   - Strength Training / Full Body: Higher calories, high protein (e.g., 90-110g), higher complex carbs for muscle building.
-   - Cardio Days: Moderate calories, high complex carbs for endurance.
-   - Rest Days: Lower calories (e.g., 1500-1700 kcal), moderate protein, low carbs to prevent excess fat accumulation.
-3. Every single meal item MUST state exact gram/volume measurements (e.g., "180g cooked rice", "2 whole wheat chapatis", "120g paneer", "3 egg whites").
-4. NEVER include {avoid} or any ingredient derived from {avoid}.
+CRITICAL RULES:
+1. EVERY DAY MUST BE DIFFERENT. Do NOT duplicate identical meal items across multiple days.
+2. TAILOR PORTIONS & MEALS TO WORKOUT INTENSITY:
+   - Heavy Workout (Strength/Full Body): Higher carbs & protein (e.g. 90-110g protein).
+   - Light/Cardio/Rest Days: Lower carbs, moderate protein, reduced overall calories.
+3. Every meal item MUST specify exact portions (grams/cups/units).
+4. STRICTLY AVOID: {avoid}.
 
-Return pure JSON matching this exact schema:
+Return pure JSON matching this exact structure:
 {{
   "estimated_weekly_budget": 2500,
   "plan_score": 98,
-  "coordination_logic": "Detailed explanation of how calorie/macro portions vary across heavy vs rest days...",
-  "grocery_list": ["Item 1", "Item 2", "Item 3"],
+  "coordination_logic": "Detailed explanation of macro/portion scaling...",
+  "grocery_list": ["Item 1", "Item 2"],
   "weekly_plan": {{
-     "Monday": {{
-        "workout": "Strength Training",
-        "daily_target": "2,200 kcal | 100g Protein",
-        "breakfast": "High-Protein Oats (60g dry) in 250ml Soy Milk + 1 Banana + 15g Almonds",
-        "lunch": "Grilled Chicken (160g) / Paneer Curry (150g) + 1.5 cups Rice + Cucumber Salad",
-        "snack": "40g Roasted Chana + 1 Apple",
-        "dinner": "Dal Makhani (1.5 cups) + 2 Chapatis + Mixed Greens",
-        "estimated_cost": 380,
-        "reason": "Increased calorie and protein loading tailored for Strength Training recovery."
-     }},
+     "Monday": {{"workout": "...", "daily_target": "...", "breakfast": "...", "lunch": "...", "snack": "...", "dinner": "...", "estimated_cost": 350, "reason": "..."}},
      "Tuesday": {{"workout": "...", "daily_target": "...", "breakfast": "...", "lunch": "...", "snack": "...", "dinner": "...", "estimated_cost": 300, "reason": "..."}},
      "Wednesday": {{"workout": "...", "daily_target": "...", "breakfast": "...", "lunch": "...", "snack": "...", "dinner": "...", "estimated_cost": 300, "reason": "..."}},
      "Thursday": {{"workout": "...", "daily_target": "...", "breakfast": "...", "lunch": "...", "snack": "...", "dinner": "...", "estimated_cost": 300, "reason": "..."}},
@@ -389,7 +372,6 @@ cook_time = st.sidebar.slider("Max Cooking Time (mins)", 10, 120, 30)
 st.sidebar.header("🏋️ Weekly Workout Routine")
 workout_options = ["Strength Training", "Cardio", "Full Body", "Rest"]
 
-# Set realistic default schedule variation
 default_workouts = {
     "Monday": "Strength Training",
     "Tuesday": "Cardio",
@@ -423,9 +405,15 @@ api_key = os.getenv("GROQ_API_KEY", "")
 if not api_key and "GROQ_API_KEY" in st.secrets:
     api_key = st.secrets["GROQ_API_KEY"]
 
-# Primary Action
+# ============================================================
+# PRIMARY GENERATION ACTION (ENABLES REPEAT RE-GENERATION)
+# ============================================================
 if st.button("🚀 GENERATE ADAPTIVE PLAN", use_container_width=True):
-    with st.spinner("Coordinating specialist agents, varying meals & adjusting macro portions..."):
+    # Clear existing state to force clean recalculation
+    if "current_plan" in st.session_state:
+        del st.session_state["current_plan"]
+        
+    with st.spinner("Processing updated parameters & re-generating plan..."):
         if api_key:
             engine = FitFuelAgents(api_key)
             plan = engine.generate_full_plan(user_state)
@@ -433,6 +421,7 @@ if st.button("🚀 GENERATE ADAPTIVE PLAN", use_container_width=True):
             plan = generate_fallback_plan(user_state)
             
         st.session_state["current_plan"] = plan
+        st.rerun()
 
 # ============================================================
 # MAIN DASHBOARD DISPLAY
@@ -460,7 +449,6 @@ if "current_plan" in st.session_state:
         data = weekly.get(day, {})
         with st.expander(f"📌 {day} — {data.get('workout', 'Rest')}", expanded=True):
             if isinstance(data, dict):
-                # Header Tag Badges
                 st.markdown(f'''
                 <div style="margin-bottom: 12px;">
                     <span class="meal-pill pill-workout">🏋️ {data.get('workout', 'Rest Day')}</span>
@@ -478,11 +466,9 @@ if "current_plan" in st.session_state:
                 
                 st.caption(f"💡 **Portion Sizing Logic:** {data.get('reason', 'Calibrated for activity level.')}")
 
-    # Coordination Insight
     st.subheader("🧠 Coordination & Portion Logic")
     st.info(plan.get("coordination_logic", "Successfully calculated macros and portion sizes based on exercise intensity."))
 
-    # Grocery List Checklist
     st.subheader("🛒 Smart Grocery List")
     groceries = plan.get("grocery_list", [])
     g_cols = st.columns(2)
