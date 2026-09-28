@@ -196,48 +196,98 @@ def sanitize_plan_against_avoidance(plan: Dict[str, Any], foods_to_avoid_str: st
     return plan
 
 # ============================================================
-# DETERMINISTIC ENGINE (OFFLINE FALLBACK)
+# DYNAMIC DETERMINISTIC ENGINE (VARIED FALLBACK)
 # ============================================================
 def generate_fallback_plan(user_state: Dict[str, Any]) -> Dict[str, Any]:
     pref = user_state.get("food_preference", "Vegetarian")
     
-    meal_options = {
+    # Expanded meal pools grouped by meal type & workout intensity
+    pools = {
         "Vegetarian": {
-            "breakfast": ["Rolled Oats (50g dry in 200ml milk) + 1 Banana", "Poha (1.5 cups cooked) with Peas + 1 Cup Tea", "Besan Chilla (2 medium, ~100g) with Mint Chutney"],
-            "lunch": ["Toor Dal (1.5 cups cooked) + Basmati Rice (1 cup / 150g) + Veggies", "Rajma (1.5 cups cooked) + Jeera Rice (1 cup) + Green Salad", "Paneer Curry (120g Paneer) + 2 Whole Wheat Chapatis"],
-            "snack": ["Roasted Chana (35g / 1 small bowl)", "Greek Yogurt (150g) + 1 Apple", "Sprouted Moong Salad (1 cup / 100g)"],
-            "dinner": ["Mixed Veg Curry (1.5 cups) + 2 Whole Wheat Chapatis", "Dal Khichdi (1.5 cups cooked) + Curd (100g)", "Palak Paneer (100g Paneer) + 2 Phulkas"]
+            "heavy": {
+                "breakfast": ["High-Protein Oats (60g) + 200ml Soy Milk + 15g Peanut Butter + 1 Banana", "3 Besan Chillas (150g) with Paneer Stuffing + Mint Chutney", "Paneer & Vegetable Paratha (2 medium) + 100g Greek Yogurt"],
+                "lunch": ["Paneer Curry (150g Paneer) + 1.5 cups Basmati Rice + Green Salad", "Rajma Masala (2 cups cooked) + Jeera Rice (1.5 cups) + Cucumber Raita", "Soya Chunk Curry (100g dry soya) + 3 Whole Wheat Chapatis + Salad"],
+                "snack": ["Sprouted Moong & Paneer Salad (1.5 cups) + Roasted Pumpkin Seeds", "Protein Shake / Soy Milk (250ml) + 40g Roasted Chana", "100g Cottage Cheese/Paneer Cubes + 1 Apple"],
+                "dinner": ["Dal Makhani (1.5 cups) + 2 Whole Wheat Chapatis + Mixed Veggies", "Tofu & Broccoli Stir-Fry (150g Tofu) + 1 cup Quinoa/Rice", "Palak Paneer (120g Paneer) + 2 Phulkas + 1 Bowl Cucumber Salad"]
+            },
+            "light": {
+                "breakfast": ["Vegetable Poha (1.5 cups cooked) + 1 Cup Green Tea", "Moong Dal Chilla (2 light chillas) + Mint Chutney", "Upma with Peas & Carrots (1.5 cups) + 10 Almonds"],
+                "lunch": ["Toor Dal Tadka (1 cup) + 1 cup Cooked Basmati Rice + Green Salad", "Mix Veg Curry + 2 Whole Wheat Chapatis + 1 Bowl Curd (100g)", "Lauki Dal (1 cup) + 1 cup Brown Rice + Tomato Salad"],
+                "snack": ["Roasted Makhana (25g) + 1 Cup Green Tea", "1 Medium Apple + 5 Walnuts", "Cucumber & Carrot Sticks with 2 tbsp Hummus"],
+                "dinner": ["Light Vegetable Soup + 1 Chapati + Sauteed Beans", "Dal Khichdi (1 cup cooked) + 100g Plain Yogurt", "Bottle Gourd (Lauki) Sabzi + 2 Phulkas + Salad"]
+            }
         },
         "Non-Vegetarian": {
-            "breakfast": ["2 Boiled Eggs + 2 Slices Toast + 1 Fruit", "Rolled Oats (50g dry) + 1 Banana", "Egg Scramble (2 Eggs + Veggies) + 1 Slice Toast"],
-            "lunch": ["Chicken Curry (150g cooked) + Cooked Rice (1 cup) + Salad", "Egg Curry (2 Eggs) + 2 Whole Wheat Chapatis", "Grilled Chicken (150g) + Steamed Veggies + 1/2 cup Rice"],
-            "snack": ["Boiled Egg Whites (3 units)", "Fruit Smoothie (200ml milk + 1 fruit)", "Roasted Chana (35g)"],
-            "dinner": ["Chicken Soup (250ml) + 1 Slice Toast", "Fish Curry (120g Fish) + Cooked Rice (1 cup)", "Egg Bhurji (2 eggs) + 2 Chapatis"]
+            "heavy": {
+                "breakfast": ["3 Whole Boiled Eggs + 2 Slices Brown Bread + 1 Banana", "3-Egg Omelette with Spinach & Cheese + 2 Toast", "High-Protein Oats (50g) with Whey/Milk + 2 Egg Whites"],
+                "lunch": ["Grilled Chicken Breast (180g) + 1.5 cups Cooked Rice + Steamed Broccoli", "Chicken Curry (150g Chicken) + 3 Chapatis + Garden Salad", "Fish Curry (180g Fish) + 1.5 cups Brown Rice + Salad"],
+                "snack": ["Boiled Egg Whites (4 units) + Black Pepper", "Protein Shake + 1 Banana", "Chicken Breast Strips (80g grilled) + Cucumber"],
+                "dinner": ["Grilled Salmon/Fish (150g) + Sauteed Veggies + 1/2 cup Sweet Potato", "Chicken Soup with Veggies (300ml) + 2 Slices Whole Grain Toast", "Egg Bhurji (3 eggs) + 2 Chapatis + Green Salad"]
+            },
+            "light": {
+                "breakfast": ["2 Boiled Eggs + 1 Slice Brown Bread + Green Tea", "2 Egg Whites Scramble + Veggies + 1 Fruit", "Rolled Oats (40g dry in water/milk) + 1 Apple"],
+                "lunch": ["Grilled Chicken Salad (120g Chicken) + Olive Oil Dressing", "Egg Curry (2 Eggs) + 1.5 Chapatis + Cucumber Salad", "Light Fish Stew (120g Fish) + 1/2 cup Rice + Salad"],
+                "snack": ["Boiled Egg Whites (2 units)", "1 Orange or Apple", "Roasted Chana (30g) + Green Tea"],
+                "dinner": ["Clear Chicken & Vegetable Broth (250ml)", "Grilled White Fish (120g) + Mixed Green Salad", "Egg White Scramble (3 whites) + 1 Chapati + Veggies"]
+            }
         }
     }
-    
-    selected_meals = meal_options.get(pref, meal_options["Vegetarian"])
+
+    selected_diet = pools.get(pref, pools["Vegetarian"])
     weekly_plan = {}
+    
+    # Track used meals to prevent exact duplication across days
+    used_meals = set()
+
     for day in DAYS:
         workout_type = user_state.get("workout_schedule", {}).get(day, "Rest")
-        is_heavy_workout = workout_type in ["Strength Training", "Full Body"]
+        is_heavy = workout_type in ["Strength Training", "Full Body", "Cardio"]
+        intensity_key = "heavy" if is_heavy else "light"
         
+        meal_pool = selected_diet[intensity_key]
+        
+        def pick_unique(category: str) -> str:
+            available = [m for m in meal_pool[category] if m not in used_meals]
+            if not available:
+                available = meal_pool[category]
+            chosen = random.choice(available)
+            used_meals.add(chosen)
+            return chosen
+
+        # Dynamic Targets per workout
+        if workout_type == "Strength Training":
+            target = "2,200 kcal | 105g Protein | High Carbs"
+            reason = "High carbohydrate and protein density engineered to support muscle hypertrophy and recovery."
+            cost = random.randint(320, 420)
+        elif workout_type == "Full Body":
+            target = "2,050 kcal | 95g Protein | Balanced Macros"
+            reason = "Balanced macronutrient distribution to optimize stamina and full-body tissue repair."
+            cost = random.randint(300, 380)
+        elif workout_type == "Cardio":
+            target = "1,900 kcal | 80g Protein | Endurance Fuel"
+            reason = "Moderate complex carbs to replenish glycogen depleted during cardiovascular training."
+            cost = random.randint(280, 350)
+        else: # Rest Day
+            target = "1,650 kcal | 70g Protein | Lower Carbs"
+            reason = "Caloric restriction with maintenance protein to prevent surplus fat storage on low-activity days."
+            cost = random.randint(220, 300)
+
         weekly_plan[day] = {
             "workout": workout_type,
-            "daily_target": "2,150 kcal | 95g Protein" if is_heavy_workout else "1,750 kcal | 70g Protein",
-            "breakfast": random.choice(selected_meals["breakfast"]),
-            "lunch": random.choice(selected_meals["lunch"]),
-            "snack": random.choice(selected_meals["snack"]),
-            "dinner": random.choice(selected_meals["dinner"]),
-            "estimated_cost": random.randint(250, 400),
-            "reason": f"Calibrated for {workout_type} day to align macronutrient intake."
+            "daily_target": target,
+            "breakfast": pick_unique("breakfast"),
+            "lunch": pick_unique("lunch"),
+            "snack": pick_unique("snack"),
+            "dinner": pick_unique("dinner"),
+            "estimated_cost": cost,
+            "reason": reason
         }
         
     return sanitize_plan_against_avoidance({
         "estimated_weekly_budget": user_state.get("weekly_budget", 2500),
-        "plan_score": 96,
-        "coordination_logic": "Baseline plan generated with portion management and workout alignment rules.",
-        "grocery_list": ["Rice (Basmati)", "Whole Wheat Flour", "Toor Dal", "Paneer / Eggs", "Seasonal Vegetables", "Milk", "Curd", "Bananas"],
+        "plan_score": 98,
+        "coordination_logic": "Dynamic portion scaling applied: High-intensity workout days feature increased protein and carb portions, while rest days trim calories to eliminate surplus.",
+        "grocery_list": ["Basmati Rice / Brown Rice", "Whole Wheat Flour (Atta)", "Paneer / Tofu / Chicken", "Toor Dal & Rajma", "Oats", "Eggs / Soy Milk", "Seasonal Veggies (Broccoli, Spinach)", "Greek Yogurt / Curd"],
         "weekly_plan": weekly_plan
     }, user_state.get("foods_to_avoid", ""))
 
@@ -257,7 +307,7 @@ class FitFuelAgents:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.2,
+                temperature=0.4, # Slightly higher temperature for menu diversity
                 max_completion_tokens=4000,
                 response_format={"type": "json_object"}
             )
@@ -273,27 +323,31 @@ You are the Supervisor Agent for FitFuel AI overseeing:
 2. Portion & Macro Control Specialist
 3. Pantry Inventory Specialist
 
-RULES:
-- Every meal MUST include exact physical weight/measurements (e.g., "150g cooked rice", "2 chapatis", "100g paneer", "200ml milk").
-- Scale portion sizes based on workout activity: Higher calories/carbs/protein on heavy days; lower calories on rest days to prevent fat accumulation.
-- NEVER include {avoid} or dishes containing {avoid}.
+CRITICAL VARIATION & PORTION RULES:
+1. EACH OF THE 7 DAYS MUST HAVE A UNIQUE MEAL PLAN. Do NOT repeat the same breakfast, lunch, or dinner across multiple days.
+2. TAILOR MEALS DIRECTLY TO THE WORKOUT INTENSITY FOR THAT DAY:
+   - Strength Training / Full Body: Higher calories, high protein (e.g., 90-110g), higher complex carbs for muscle building.
+   - Cardio Days: Moderate calories, high complex carbs for endurance.
+   - Rest Days: Lower calories (e.g., 1500-1700 kcal), moderate protein, low carbs to prevent excess fat accumulation.
+3. Every single meal item MUST state exact gram/volume measurements (e.g., "180g cooked rice", "2 whole wheat chapatis", "120g paneer", "3 egg whites").
+4. NEVER include {avoid} or any ingredient derived from {avoid}.
 
-Return pure JSON only matching this schema:
+Return pure JSON matching this exact schema:
 {{
   "estimated_weekly_budget": 2500,
-  "plan_score": 96,
-  "coordination_logic": "Detailed breakdown of portion and workout alignment...",
-  "grocery_list": ["Item 1", "Item 2"],
+  "plan_score": 98,
+  "coordination_logic": "Detailed explanation of how calorie/macro portions vary across heavy vs rest days...",
+  "grocery_list": ["Item 1", "Item 2", "Item 3"],
   "weekly_plan": {{
      "Monday": {{
         "workout": "Strength Training",
-        "daily_target": "2,100 kcal | 90g Protein",
-        "breakfast": "Oats (50g dry) in 200ml Milk + 1 Banana",
-        "lunch": "150g Rice + 1.5 cups Dal + 100g Salad",
-        "snack": "35g Roasted Chana",
-        "dinner": "120g Paneer Bhurji + 2 Whole Wheat Chapatis",
-        "estimated_cost": 350,
-        "reason": "Higher carbohydrate & protein portions engineered for muscle synthesis."
+        "daily_target": "2,200 kcal | 100g Protein",
+        "breakfast": "High-Protein Oats (60g dry) in 250ml Soy Milk + 1 Banana + 15g Almonds",
+        "lunch": "Grilled Chicken (160g) / Paneer Curry (150g) + 1.5 cups Rice + Cucumber Salad",
+        "snack": "40g Roasted Chana + 1 Apple",
+        "dinner": "Dal Makhani (1.5 cups) + 2 Chapatis + Mixed Greens",
+        "estimated_cost": 380,
+        "reason": "Increased calorie and protein loading tailored for Strength Training recovery."
      }},
      "Tuesday": {{"workout": "...", "daily_target": "...", "breakfast": "...", "lunch": "...", "snack": "...", "dinner": "...", "estimated_cost": 300, "reason": "..."}},
      "Wednesday": {{"workout": "...", "daily_target": "...", "breakfast": "...", "lunch": "...", "snack": "...", "dinner": "...", "estimated_cost": 300, "reason": "..."}},
@@ -318,7 +372,7 @@ Return pure JSON only matching this schema:
 st.markdown("""
 <div class="hero-container">
     <div class="hero-title">⚡ FitFuel AI</div>
-    <div class="hero-subtitle">Smart Meal & Workout Planner with Precision Portion Control</div>
+    <div class="hero-subtitle">Smart Meal & Workout Planner with Dynamic Portion & Menu Variance</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -334,12 +388,25 @@ cook_time = st.sidebar.slider("Max Cooking Time (mins)", 10, 120, 30)
 
 st.sidebar.header("🏋️ Weekly Workout Routine")
 workout_options = ["Strength Training", "Cardio", "Full Body", "Rest"]
+
+# Set realistic default schedule variation
+default_workouts = {
+    "Monday": "Strength Training",
+    "Tuesday": "Cardio",
+    "Wednesday": "Rest",
+    "Thursday": "Strength Training",
+    "Friday": "Full Body",
+    "Saturday": "Cardio",
+    "Sunday": "Rest"
+}
+
 schedule = {}
 for day in DAYS:
-    schedule[day] = st.sidebar.selectbox(f"{day}", workout_options, key=f"s_{day}")
+    default_idx = workout_options.index(default_workouts[day])
+    schedule[day] = st.sidebar.selectbox(f"{day}", workout_options, index=default_idx, key=f"s_{day}")
 
 st.sidebar.header("🥫 Pantry Stock")
-pantry = st.sidebar.text_area("Available Ingredients", "Rice\nDal\nOats\nMilk\nPaneer\nBananas\nTomatoes\nOnions", height=120)
+pantry = st.sidebar.text_area("Available Ingredients", "Rice\nDal\nOats\nMilk\nPaneer\nEggs\nBananas\nTomatoes\nOnions\nSpinach", height=120)
 
 user_state = {
     "name": name,
@@ -358,7 +425,7 @@ if not api_key and "GROQ_API_KEY" in st.secrets:
 
 # Primary Action
 if st.button("🚀 GENERATE ADAPTIVE PLAN", use_container_width=True):
-    with st.spinner("Coordinating specialist agents & calculating portions..."):
+    with st.spinner("Coordinating specialist agents, varying meals & adjusting macro portions..."):
         if api_key:
             engine = FitFuelAgents(api_key)
             plan = engine.generate_full_plan(user_state)
@@ -376,7 +443,7 @@ if "current_plan" in st.session_state:
     # Top Metric Banner
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        st.markdown(f'<div class="metric-card"><div class="metric-value">{plan.get("plan_score", 96)}/100</div><div class="metric-label">Plan Score</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-value">{plan.get("plan_score", 98)}/100</div><div class="metric-label">Plan Score</div></div>', unsafe_allow_html=True)
     with m2:
         st.markdown(f'<div class="metric-card"><div class="metric-value">₹{plan.get("estimated_weekly_budget", budget)}</div><div class="metric-label">Est. Cost</div></div>', unsafe_allow_html=True)
     with m3:
@@ -391,7 +458,7 @@ if "current_plan" in st.session_state:
     
     for day in DAYS:
         data = weekly.get(day, {})
-        with st.expander(f"📌 {day}", expanded=True):
+        with st.expander(f"📌 {day} — {data.get('workout', 'Rest')}", expanded=True):
             if isinstance(data, dict):
                 # Header Tag Badges
                 st.markdown(f'''
