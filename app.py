@@ -5,7 +5,7 @@ import json
 import random
 import asyncio
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 # ============================================================================
@@ -125,7 +125,6 @@ class OrchestratorEngine:
             traces: List[AgentStateTrace] = []
 
             # --- AGENT 1: SUPERVISOR AGENT ---
-            t0 = datetime.now()
             sup_input = {"day": day, "workout": workout, "diet": diet_preference}
             sup_logs = [f"Supervisor initializing orchestrator graph node for {day}."]
             sup_output = {"status": "ORCHESTRATION_STARTED", "target_pipeline": ["WorkoutAgent", "PantryAgent", "PortionAgent", "AuditAgent"]}
@@ -172,9 +171,11 @@ class OrchestratorEngine:
 
                 if candidates:
                     chosen = random.choice(candidates)
+                    chosen_dict = chosen.dict() if hasattr(chosen, "dict") else chosen.model_dump()
+                    chosen_copy = MealRecipe(**chosen_dict)
                 else:
                     # Fallback construct
-                    chosen = MealRecipe(
+                    chosen_copy = MealRecipe(
                         title=f"Custom Pantry {category} Mix",
                         category=category,
                         ingredients=[user_pantry[0]] if user_pantry else ["Oats"],
@@ -184,13 +185,13 @@ class OrchestratorEngine:
                         carbs_g=round(35.0 * scalar, 1),
                         fats_g=round(8.0 * scalar, 1)
                     )
-                
+
                 # Apply scaling
-                chosen.base_calories = int(chosen.base_calories * scalar)
-                chosen.protein_g = round(chosen.protein_g * scalar, 1)
-                chosen.carbs_g = round(chosen.carbs_g * scalar, 1)
-                chosen.fats_g = round(chosen.fats_g * scalar, 1)
-                selected_day_meals[category] = chosen
+                chosen_copy.base_calories = int(chosen_copy.base_calories * scalar)
+                chosen_copy.protein_g = round(chosen_copy.protein_g * scalar, 1)
+                chosen_copy.carbs_g = round(chosen_copy.carbs_g * scalar, 1)
+                chosen_copy.fats_g = round(chosen_copy.fats_g * scalar, 1)
+                selected_day_meals[category] = chosen_copy
 
             traces.append(AgentStateTrace(
                 agent_name="Pantry & Selection Agent",
@@ -321,7 +322,7 @@ with tab_meals:
         for cat, meal_obj in day_data.meals.items():
             st.markdown(f"""
                 <div class="meal-box">
-                    <div style="display:flex; justify-size:space-between; align-items:center;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
                         <h3 style="margin:0; color:#10B981;">{cat}: {meal_obj.title}</h3>
                         <span class="status-badge">{meal_obj.diet_role}</span>
                     </div>
@@ -339,7 +340,6 @@ with tab_meals:
 
     with col_r:
         st.subheader("🛒 Inventory Cost Allocation")
-        # Estimate Cost per Day based on active ingredients
         cost_records = []
         for ing_obj in MASTER_PANTRY_DATABASE:
             if ing_obj.name in selected_pantry_names:
