@@ -1,6 +1,0 @@
-streamlit
-groq
-pandas
-plotly
-pillow
-pydantic
