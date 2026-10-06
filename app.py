@@ -729,25 +729,25 @@ with c1:
     st.markdown("### 👤 Profile")
     st.write("Set your diet role, foods to avoid, budget and cooking time.")
     if st.button("Open Profile →", use_container_width=True):
-        go("pages/1_Profile.py")
+       go("1_Profile.py")
 
 with c2:
     st.markdown("### 🥫 Pantry")
     st.write("Enter exactly what is available at home.")
     if st.button("Open Pantry →", use_container_width=True):
-        go("pages/2_Pantry.py")
+        go("2_Pantry.py")
 
 with c3:
     st.markdown("### 🏋️ Workout")
     st.write("Set the workout for every day of the week.")
     if st.button("Open Workout →", use_container_width=True):
-        go("pages/3_Workout.py")
+        go("3_Workout.py")
 
 st.divider()
 
 st.markdown("### 🚀 Ready to generate?")
 if st.button("Generate My Plan →", type="primary", use_container_width=True):
     generate_current_plan()
-    go("pages/4_Daily_Plan.py")
+    go("4_Daily_Plan.py")
 
 st.info("Recommended flow: Profile → Pantry → Workout → Generate Plan → Select Day → Select Agent.")
