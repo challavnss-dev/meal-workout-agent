@@ -1,9 +1,10 @@
 
+import streamlit as st
+
 st.set_page_config(
-    page_title="FitFuel AI",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="Meal & Workout Agent",
+    page_icon="🏋️️‍♂️",
+    layout="wide"
 )
 
 st.markdown("""
