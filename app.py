@@ -165,7 +165,6 @@ class OrchestratorEngine:
                         continue
                     if diet_preference == "Vegetarian" and recipe.diet_role != "Veg":
                         continue
-                    # Strict Pantry Verification Logic
                     if all(ing in user_pantry for ing in recipe.ingredients):
                         candidates.append(recipe)
 
@@ -174,7 +173,6 @@ class OrchestratorEngine:
                     chosen_dict = chosen.dict() if hasattr(chosen, "dict") else chosen.model_dump()
                     chosen_copy = MealRecipe(**chosen_dict)
                 else:
-                    # Fallback construct
                     chosen_copy = MealRecipe(
                         title=f"Custom Pantry {category} Mix",
                         category=category,
@@ -186,7 +184,6 @@ class OrchestratorEngine:
                         fats_g=round(8.0 * scalar, 1)
                     )
 
-                # Apply scaling
                 chosen_copy.base_calories = int(chosen_copy.base_calories * scalar)
                 chosen_copy.protein_g = round(chosen_copy.protein_g * scalar, 1)
                 chosen_copy.carbs_g = round(chosen_copy.carbs_g * scalar, 1)
@@ -238,11 +235,48 @@ class OrchestratorEngine:
 
         return full_plan
 
+
+class ProfessionalAIChatbot:
+    """Simulated Rule-Based & Context-Aware AI Nutritionist Agent."""
+    @staticmethod
+    def generate_response(prompt: str, context_day: DayPlan, diet_pref: str, pantry: List[str], allergens: List[str]) -> str:
+        p_lower = prompt.lower()
+        meals_text = ", ".join([m.title for m in context_day.meals.values()])
+
+        if "protein" in p_lower:
+            return (f"For **{context_day.day}** ({context_day.workout_type}), your target is **{context_day.target_protein}g of protein**. "
+                    f"Your scheduled meals are providing protein through key sources like: "
+                    f"*{', '.join(pantry[:4]) if pantry else 'your pantry items'}*. "
+                    f"If you need extra protein, consider adding Greek Yogurt or Eggs to your snacks.")
+        
+        elif "calorie" in p_lower or "caloric" in p_lower or "weight" in p_lower:
+            return (f"Your caloric target for {context_day.day} is set to **{context_day.target_calories} kcal** "
+                    f"based on your scheduled activity ({context_day.workout_type}). "
+                    f"On higher-intensity days, calories scale up by 20% to aid recovery.")
+
+        elif "substitute" in p_lower or "replace" in p_lower or "swap" in p_lower:
+            return (f"Given your **{diet_pref}** preference and available pantry items (*{', '.join(pantry[:5])}*), "
+                    f"you can swap ingredients seamlessly. For example, Paneer and Tofu are 1:1 macro substitutes, "
+                    f"as are Chicken Breast and Salmon for non-vegetarians.")
+
+        elif "allergy" in p_lower or "allergen" in p_lower or "safe" in p_lower:
+            if allergens:
+                return f"Your active safety filter is guarding against: **{', '.join(allergens)}**. All meals for {context_day.day} passed the audit agent checks."
+            return "No active allergen guardrails set. You can specify allergens in the sidebar to enforce automatic safety filtering."
+
+        else:
+            return (f"Hello! I am your AI Health Assistant. I've analyzed your setup for **{context_day.day}**:\n\n"
+                    f"- **Workout:** {context_day.workout_type}\n"
+                    f"- **Daily Target:** {context_day.target_calories} kcal | {context_day.target_protein}g Protein\n"
+                    f"- **Planned Meals:** {meals_text}\n"
+                    f"- **Active Diet Boundary:** {diet_pref}\n\n"
+                    f"How can I assist you with your diet, workout, or macro goals today?")
+
 # ============================================================================
 # 5. DASHBOARD UI LAYOUT
 # ============================================================================
 st.title("⚡ FitFuel AI: Multi-Agent Orchestration Platform")
-st.caption("Production-Grade Multi-Agent System Engine | Real-Time State Tracing & Macro Scaling")
+st.caption("Production-Grade Multi-Agent System Engine | Real-Time State Tracing & AI Assistant")
 
 # Sidebar Configuration
 with st.sidebar:
@@ -254,7 +288,6 @@ with st.sidebar:
     st.header("2. Active Pantry Inventory")
     st.caption("Pantry items dynamically match selected diet role restrictions.")
 
-    # Filter Pantry Display Items Dynamically
     eligible_ingredients = [ing for ing in MASTER_PANTRY_DATABASE if diet_pref == "Non-Vegetarian" or ing.diet_role == "Veg"]
     eligible_names = [ing.name for ing in eligible_ingredients]
 
@@ -284,6 +317,12 @@ if "enterprise_plan" not in st.session_state or trigger_replan:
 
 enterprise_plan: Dict[str, DayPlan] = st.session_state["enterprise_plan"]
 
+# Initialize Chat State
+if "chat_history" not in st.session_state:
+    st.session_state["chat_history"] = [
+        {"role": "assistant", "content": "Hello! I am your Professional AI Diet & Fitness Advisor. Feel free to ask any questions regarding your plan, ingredient swaps, or macro targets."}
+    ]
+
 # Top Controller Panel
 c_day, c_view = st.columns([2, 3])
 with c_day:
@@ -304,9 +343,10 @@ m5.metric("Macro Balance", f"{day_data.target_carbs}g C / {day_data.target_fats}
 st.markdown("###")
 
 # Tab Interface for Deep Inspection
-tab_meals, tab_analytics, tab_agents, tab_graph = st.tabs([
+tab_meals, tab_analytics, tab_chat, tab_agents, tab_graph = st.tabs([
     "🍽️ Meal Schedule", 
-    "📊 Macro & Cost Analytics", 
+    "📊 Macro & Cost Analytics",
+    "💬 AI Dietitian Chatbot",
     "🤖 Agent Tracing & Payload Inspection",
     "🕸️ Multi-Agent Architecture Graph"
 ])
@@ -386,14 +426,47 @@ with tab_analytics:
         df_macro_melt = df_weekly.melt(id_vars=['Day'], value_vars=['Protein (g)', 'Carbs (g)', 'Fats (g)'], var_name='Macro', value_name='Grams')
         chart_macro = alt.Chart(df_macro_melt).mark_bar().encode(
             x=alt.X('Day:N', sort=DAYS),
-            y='Grams:Q',
+            y=alt.Y('Grams:Q'),
             color=alt.Color('Macro:N', scale=alt.Scale(range=['#EF4444', '#3B82F6', '#F59E0B'])),
             tooltip=['Day', 'Macro', 'Grams']
         ).properties(height=300)
         st.altair_chart(chart_macro, use_container_width=True)
 
 # ----------------------------------------------------------------------------
-# TAB 3: AGENT TRACING & INSPECTION
+# TAB 3: AI DIETITIAN CHATBOT
+# ----------------------------------------------------------------------------
+with tab_chat:
+    st.subheader("💬 AI Health & Nutrition Agent Support")
+    st.caption("Ask questions about your meal schedule, ingredient swaps, workout adjustments, or macros.")
+
+    # Render Chat History
+    for msg in st.session_state["chat_history"]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Chat Input Box
+    if user_prompt := st.chat_input("Ask a doubt (e.g., 'How do I get more protein on Monday?')"):
+        # Append User Msg
+        st.session_state["chat_history"].append({"role": "user", "content": user_prompt})
+        with st.chat_message("user"):
+            st.markdown(user_prompt)
+
+        # Generate Response
+        ai_reply = ProfessionalAIChatbot.generate_response(
+            prompt=user_prompt,
+            context_day=day_data,
+            diet_pref=diet_pref,
+            pantry=selected_pantry_names,
+            allergens=allergens
+        )
+
+        # Append Assistant Msg
+        st.session_state["chat_history"].append({"role": "assistant", "content": ai_reply})
+        with st.chat_message("assistant"):
+            st.markdown(ai_reply)
+
+# ----------------------------------------------------------------------------
+# TAB 4: AGENT TRACING & INSPECTION
 # ----------------------------------------------------------------------------
 with tab_agents:
     st.subheader(f"Agent Execution Graph Logs — {selected_day}")
@@ -415,7 +488,7 @@ with tab_agents:
                 st.json(trace.output_payload)
 
 # ----------------------------------------------------------------------------
-# TAB 4: ARCHITECTURE GRAPH
+# TAB 5: ARCHITECTURE GRAPH
 # ----------------------------------------------------------------------------
 with tab_graph:
     st.subheader("Multi-Agent System Execution Topology")
@@ -441,9 +514,11 @@ with tab_graph:
     | - Intensity   | -------->| - Recipe      | -------->| - Allergen    |
     |   Scaling     |          |   Matching    |          |   Sanitization|
     +---------------+          +---------------+          +---------------+
-                                                                  |
-                                                                  v
-                                                        +------------------+
-                                                        | RENDERED OUTPUT  |
-                                                        +------------------+
+                                       |
+                                       v
+                     +----------------------------------+
+                     |    AI DIETITIAN CHATBOT AGENT    |
+                     |  - Live Context Awareness        |
+                     |  - Interactive Doubt Resolution  |
+                     +----------------------------------+
     """, language="text")
